@@ -14,7 +14,7 @@ pip install -r requirements.txt
 
 ### Running code
 
-`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=none --err_p1=0.001 --err_p2=0.01`
+`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=thermal_relaxation --err_p1=0.001 --err_p2=0.01`
 
 where 
 

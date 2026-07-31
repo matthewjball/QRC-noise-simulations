@@ -234,8 +234,11 @@ class QuantumCircQiskit:
                 for qbit in qubit_idx:
                     qc.id(qbit)
                     
-    def get_noise_model(self, err_type='depolarizing', p1=0.001, p2=0.01, p_idle=0.0001):
+    def get_noise_model(self, err_type='depolarizing', p1=0.001, p2=0.01, p_idle=0.0001, t1=50e-6, 
+                        t2=70e-6, gate_time_1q=57e-9, gate_time_2q=533e-9, idle_time=1e-6, excited_state_population=0.0):
+        
         # Error probabilities: p1=1-qubit gate, p2=2-qubit gate
+
         if err_type=='depolarizing' or err_type=='depolarizing_idle':
             # Depolarizing quantum errors
             error_1 = noise.depolarizing_error(p1, 1)
@@ -255,8 +258,31 @@ class QuantumCircQiskit:
             error_idle = noise.amplitude_damping_error(p_idle, 1)
 
         elif err_type=='thermal_relaxation' or err_type=='thermal_relaxation_idle':
-            # do something
-            print('thermal')
+            # Validate T2 <= 2*T1 (physical constraint)
+            if t2 > 2 * t1:
+                raise ValueError(f'T2 ({t2}s) must be <= 2*T1 ({2*t1}s)')
+
+            error_1 = noise.thermal_relaxation_error(
+            t1=t1, t2=t2, time=gate_time_1q,
+            excited_state_population=excited_state_population)
+
+            # Two-qubit error: tensor two independent single-qubit errors
+            # Each qubit in the cx experiences relaxation for gate_time_2q
+            error_2_q0 = noise.thermal_relaxation_error(
+                t1=t1, t2=t2, time=gate_time_2q,
+                excited_state_population=excited_state_population)
+            error_2_q1 = noise.thermal_relaxation_error(
+                t1=t1, t2=t2, time=gate_time_2q,
+                excited_state_population=excited_state_population)
+            
+            error_2 = error_2_q0.tensor(error_2_q1)
+
+            # Idle error
+            error_idle = noise.thermal_relaxation_error(
+                t1=t1, t2=t2, time=idle_time,
+                excited_state_population=excited_state_population
+        )
+
 
         elif err_type=='none':
             return None, None
@@ -268,7 +294,7 @@ class QuantumCircQiskit:
         noise_model.add_all_qubit_quantum_error(error_1, ['x','h','ry','rz','u1', 'u2', 'u3'])
         noise_model.add_all_qubit_quantum_error(error_2, ['cx'])
         noise_model.add_basis_gates('unitary')
-        if err_type=='depolarizing_idle' or err_type=='amplitude_damping_idle' or err_type=='phase_damping_idle':
+        if err_type=='depolarizing_idle' or err_type=='amplitude_damping_idle' or err_type=='phase_damping_idle' or err_type=='thermal_relaxation_idle':
             noise_model.add_all_qubit_quantum_error(error_idle, ['id'])
 
         # Get basis gates from noise model
