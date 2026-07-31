@@ -2,9 +2,7 @@ import numpy as np
 from numpy.lib.scimath import sqrt as csqrt
 from scipy.stats import unitary_group
 
-import itertools
-import random
-import sys
+import itertools, random, sys, argparse
 import qiskit_aer.noise as noise
 
 from qiskit import *
@@ -30,13 +28,12 @@ class QuantumCircQiskit:
         self.qubits_set = []
         self.nqbits=nqbits
         self.err_type = err_type
-        if err_type is not None:
-            noise_model, basis_gates = self.get_noise_model(err_type=err_type, p1=err_p1, p2=err_p2, p_idle=err_idle)
-        else:
-            noise_model, basis_gates = None, None
+
+        noise_model, basis_gates = self.get_noise_model(err_type=err_type, p1=err_p1, p2=err_p2, p_idle=err_idle)
             
         self.noise_model = noise_model
         self.basis_gates = basis_gates
+
         if self.gates_name=='G1':
             gates = ['CNOT', 'H', 'X']
         if self.gates_name=='G2':
@@ -103,7 +100,7 @@ class QuantumCircQiskit:
         # Define initial state
         initial_state = initial_state.round(6)
         initial_state/=np.sqrt(np.sum(initial_state**2))
-        # self.nqbits = int(np.log2(initial_state.shape[0]))
+    
         dim = len(initial_state)
 
         # Create matrix with initial_state as first column
@@ -256,11 +253,12 @@ class QuantumCircQiskit:
             error_2 = noise.amplitude_damping_error(p2)
             error_2 = error_1.tensor(error_2)
             error_idle = noise.amplitude_damping_error(p_idle, 1)
+
+        elif err_type=='thermal_relaxation' or err_type=='thermal_relaxation_idle':
+            # do something
+            print('thermal')
+
         elif err_type=='none':
-            # backend = GenericBackendV2(8)
-            # noise_model = NoiseModel.from_backend(backend)
-            # basis_gates = noise_model.basis_gates
-            # return noise_model, basis_gates
             return None, None
         else:
             raise ValueError('Error type not supported', err_type)
@@ -327,15 +325,12 @@ class QuantumCircQiskit:
 
         # 4. RUN CIRCUIT
         results = []
-        results_noise = []
+        results_noiseless = []
         
-   
-        if self.noise_model is not None:
-            backend = AerSimulator(method='density_matrix', noise_model=self.noise_model)
-            qc.save_density_matrix()
-        else:
-            backend = AerSimulator(method='statevector')
-            qc.save_statevector()
+        qc_noiseless = qc.copy()
+
+        backend = AerSimulator(method='density_matrix', noise_model=self.noise_model)
+        qc.save_density_matrix()
 
         optimization_level = 0 if self.err_type in ['depolarizing_idle', 'amplitude_damping_idle', 'phase_damping_idle'] else 1
         transpiled_qc = transpile(qc, backend, optimization_level=optimization_level)
@@ -345,55 +340,53 @@ class QuantumCircQiskit:
 
         # 4.1 Debug info
         print(f'\nDEBUG INFO')
-        print(f"Circuit depth: {qc.depth()}")
-        print(f"Circuit gates: {qc.count_ops()}")
-        print(f"Circuit num_qubits: {qc.num_qubits}")
         print(result)
         print(f'\n')
 
-
-        qc_noiseless = qc.copy()
-
-        if self.noise_model is not None:
-            # Density matrix simulation - convert to statevector if possible
-            dm_data = result.data(0)["density_matrix"]
-            dm = DensityMatrix(dm_data)
-            qc_state = dm.data
-        else:
-            qc_state = result.get_statevector()
-
-
+        dm_data = result.data(0)["density_matrix"]
+        dm = DensityMatrix(dm_data)
+        qc_state = dm.data
         
         if self.observables_type=='fidelity':
-            backend_noiseless = AerSimulator(method='statevector')
-            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
-            qc_state_noiseless = job_noiseless.result().get_statevector()
+            backend_noiseless = AerSimulator(method='density_matrix')
+            qc_noiseless.save_density_matrix()
 
-            state_noise = Statevector(qc_state)
-            state_noiseless = Statevector(qc_state_noiseless)
-            fidelity = state_fidelity(state_noise,state_noiseless)
-            return np.array(state_noise), np.array(state_noiseless), fidelity
+            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
+            result_noiseless = job_noiseless.result()
+            
+            dm_data_noiseless = result_noiseless.data(0)["density_matrix"]
+            dm_noiseless = DensityMatrix(dm_data_noiseless)
+            qc_state_noiseless = dm_noiseless.data
+
+            fidelity = state_fidelity(qc_state,qc_state_noiseless)
+            return np.array(qc_state), np.array(qc_state_noiseless), fidelity
         
         if self.observables_type=='all':
-            backend_noiseless = AerSimulator(method='statevector')
-            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
-            qc_state_noiseless = job_noiseless.result().get_statevector()
+            backend_noiseless = AerSimulator(method='density_matrix')
+            qc_noiseless.save_density_matrix()
 
-            state_noise = Statevector(qc_state)
-            state_noiseless = Statevector(qc_state_noiseless)
-            fidelity = state_fidelity(state_noise,state_noiseless)
-            
+            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
+            result_noiseless = job_noiseless.result()
+
+            dm_data_noiseless = result_noiseless.data(0)["density_matrix"]
+            dm_noiseless = DensityMatrix(dm_data_noiseless)
+            qc_state_noiseless = dm_noiseless.data
+
+            fidelity = state_fidelity(qc_state,qc_state_noiseless)
+
             for obs in observables:
-                obs_mat = obs.to_spmatrix()
-                expect = np.inner(np.conjugate(state_noise), obs_mat.dot(state_noise)).real
-                results_noise.append(expect)
-                expect = np.inner(np.conjugate(state_noiseless), obs_mat.dot(state_noiseless)).real
+                obs_mat = obs.to_matrix()
+                expect = np.inner(np.conjugate(qc_state), obs_mat.dot(qc_state)).real
                 results.append(expect)
-            return np.array(state_noise), np.array(state_noiseless), fidelity, np.array(results), np.array(results_noise)
+
+                expect_noiseless = np.inner(np.conjugate(qc_state_noiseless), obs_mat.dot(qc_state_noiseless)).real
+                results_noiseless.append(expect_noiseless)
+
+            return np.array(qc_state), np.array(qc_state_noiseless), fidelity, np.array(results), np.array(results_noiseless)
         
         if self.observables_type=='single':
             for obs in observables:
-                obs_mat = obs.to_spmatrix()
+                obs_mat = obs.to_matrix()
                 expect = np.inner(np.conjugate(qc_state), obs_mat.dot(qc_state)).real
                 results.append(expect)
 
@@ -403,15 +396,23 @@ class QuantumCircQiskit:
         
         
 # Read user argument (number of gates and gates set)
-if len(sys.argv)!=7:
-    raise ValueError('Incorrect number of arguments: ', len(sys.argv))
-else:
-    num_gates = int(sys.argv[1])   
-    gate_set = str(sys.argv[2])
-    observables_type = str(sys.argv[3])
-    err_type=str(sys.argv[4])
-    err_p1=float(sys.argv[5])
-    err_p2 = float(sys.argv[6])
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--num_gates", default=10, help="Number of gate operations for simulations - default 10")
+parser.add_argument("--gate_set", default='G3', help="Set of gates for simulations - see README for options")
+parser.add_argument("--observables_type", default='all', help="Type of observable data reported - see README for options")
+parser.add_argument("--err_type", required=True,help="Error type simulated - see README for options")
+parser.add_argument("--err_p1", required=True, help="Probability of error on first run through")
+parser.add_argument("--err_p2", required=True, help="Probability of error on second run through")
+
+args = parser.parse_args()
+
+num_gates = int(args.num_gates)
+gate_set = str(args.gate_set)
+observables_type = str(args.observables_type)
+err_type = str(args.err_type)
+err_p1 = float(args.err_p1)
+err_p2 = float(args.err_p2)
 
 print('Num gates: ', num_gates, ' gate_set: ', gate_set, ' observables_type:', observables_type,
       ' err_type: ', err_type, ' err_p1: ', err_p1, ' err_p2: ', err_p2  )
@@ -440,14 +441,14 @@ for j in range(5):
             state_noiseless_list.append(state_noiseless)
             fidelity_list.append(fidelity)
     elif observables_type=='all':
-        fidelity_list, obs_res, obs_noise = [],[],[]
+        fidelity_list, obs_res, obs_noiseless = [],[],[]
         for i in range(num_states):
-            _, _, fidelity, res, res_noise = qc.run_circuit(ground_states[i])
+            _, _, fidelity, res, res_noiseless = qc.run_circuit(ground_states[i])
             fidelity_list.append(fidelity)
             obs_res.append(res)
-            obs_noise.append(res_noise)
+            obs_noiseless.append(res_noiseless)
         obs_res = np.array(obs_res) 
-        obs_noise = np.array(obs_noise)
+        obs_noiseless = np.array(obs_noiseless)
 
 
     # Store results
@@ -473,7 +474,7 @@ for j in range(5):
         result={
             'fidelity_list':fidelity_list,
             'observables':obs_res,
-            'observables_noise':obs_noise
+            'observables_noiseless':obs_noiseless
         }
         with open(filename, 'wb') as f:
             np.save(f, result, allow_pickle=True)
