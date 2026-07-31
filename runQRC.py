@@ -1,29 +1,23 @@
 import numpy as np
-import numpy as np
 from numpy.lib.scimath import sqrt as csqrt
-from qiskit import *
-from qiskit.compiler import transpile
-from qiskit.quantum_info import Statevector
 from scipy.stats import unitary_group
 
-from qiskit.quantum_info import Pauli
-from qiskit.opflow import *
-from qiskit.circuit.library import Diagonal
-from qiskit.extensions import  UnitaryGate
-from qiskit.providers.aer.noise import NoiseModel
-from qiskit.quantum_info import Statevector, state_fidelity
-import qiskit.providers.aer.noise as noise
-from qiskit import  Aer
-from qiskit.test.mock import FakeProvider
-from qiskit.test.mock import *
-from qiskit.quantum_info import Statevector, state_fidelity
-from numpy.lib.scimath import sqrt as csqrt
-from scipy.stats import unitary_group
 import itertools
-from qiskit.extensions import UnitaryGate
-
 import random
 import sys
+import qiskit_aer.noise as noise
+
+from qiskit import *
+from qiskit.compiler import transpile
+from qiskit import QuantumCircuit
+from qiskit.circuit.library import Diagonal, UnitaryGate
+from qiskit_aer.noise import NoiseModel
+from qiskit.quantum_info import Statevector, DensityMatrix, state_fidelity, Pauli, SparsePauliOp, Operator
+from qiskit_aer import AerSimulator
+
+from qiskit.providers.fake_provider import GenericBackendV2
+
+# from qiskit.test.mock import *
 
 class QuantumCircQiskit:
     def __init__(self, gates_name, num_gates=50,nqbits=8,observables_type = 'fidelity',
@@ -35,7 +29,6 @@ class QuantumCircQiskit:
         self.gates_set = []
         self.qubits_set = []
         self.nqbits=nqbits
-        self.coupling_map=None
         self.err_type = err_type
         if err_type is not None:
             noise_model, basis_gates = self.get_noise_model(err_type=err_type, p1=err_p1, p2=err_p2, p_idle=err_idle)
@@ -110,17 +103,22 @@ class QuantumCircQiskit:
         # Define initial state
         initial_state = initial_state.round(6)
         initial_state/=np.sqrt(np.sum(initial_state**2))
+        # self.nqbits = int(np.log2(initial_state.shape[0]))
+        dim = len(initial_state)
 
-        # Define qiskit circuit to initialize quantum state
-        self.nqbits = int(np.log2(initial_state.shape[0]))
-        qc_initial = QuantumCircuit(self.nqbits)
-        qc_initial.initialize(initial_state, list(range(self.nqbits)))
+        # Create matrix with initial_state as first column
+        A = np.zeros((dim, dim), dtype=np.complex128)
+        A[:, 0] = initial_state
+    
+        # Fill remaining columns with random vectors
+        for i in range(1, dim):
+            A[:, i] = np.random.randn(dim) + 1j * np.random.randn(dim)
+    
+        # QR decomposition guarantees unitary Q
+        Q, R = np.linalg.qr(A)
         
-        aer_sim = Aer.get_backend('unitary_simulator')
-        job = aer_sim.run(transpile(qc_initial, aer_sim))
-        U = job.result().get_unitary()
-        U = UnitaryGate(U, label='unitary')
-
+        U = UnitaryGate(Q, label='unitary')
+        
         return U
 
     def apply_G_gates(self, qc):
@@ -202,7 +200,7 @@ class QuantumCircQiskit:
     def apply_Dn(self, qc):
         # Apply Dn gate
         diagonals = np.exp(1j*self.phis)
-        qc += Diagonal(diagonals)
+        qc = qc.compose(Diagonal(diagonals))
         
     def apply_D2(self, qc):
         i=0
@@ -230,7 +228,7 @@ class QuantumCircQiskit:
             qc.append(D3, [pair[0], pair[1], pair[2]])
             i+=1
             # Appply identity operator to all idle qubits if we use an ide noise model
-            if self.err_type=='depolarizing_idle' or self.err_type=='amplitude_damping_idle' or err_type=='phase_damping_idle':
+            if self.err_type=='depolarizing_idle' or self.err_type=='amplitude_damping_idle' or self.err_type=='phase_damping_idle':
                 qubit_idx = list(range(self.nqbits))
                 qubit_idx.remove(pair[0])
                 qubit_idx.remove(pair[1])
@@ -258,22 +256,12 @@ class QuantumCircQiskit:
             error_2 = noise.amplitude_damping_error(p2)
             error_2 = error_1.tensor(error_2)
             error_idle = noise.amplitude_damping_error(p_idle, 1)
-        elif err_type=='fake':
-            provider = FakeProvider()
-            names = [ b.name() for b in provider.backends() if b.configuration().n_qubits >= self.nqbits]
-            if len(names)==0:
-                raise ValueError('Error type not supported')
-            fake = provider.get_backend(names[7])
-            # Get coupling map from backend
-            coupling_map = fake.configuration().coupling_map
-            cmap = [[self.nqbits-1,1]]
-            for i,j in coupling_map:
-                if i<nqbits and j<nqbits:
-                    cmap.append([i,j]) 
-            self.coupling_map = cmap
-            noise_model = NoiseModel.from_backend(fake)
-            basis_gates = noise_model.basis_gates
-            return noise_model, basis_gates
+        elif err_type=='none':
+            # backend = GenericBackendV2(8)
+            # noise_model = NoiseModel.from_backend(backend)
+            # basis_gates = noise_model.basis_gates
+            # return noise_model, basis_gates
+            return None, None
         else:
             raise ValueError('Error type not supported', err_type)
         # Add errors to noise model
@@ -297,15 +285,15 @@ class QuantumCircQiskit:
         for i in range(self.nqbits):
             # X
             op_nameX = name_gate[:i] + 'X' + name_gate[(i+1):]
-            obs = PauliOp(Pauli(op_nameX))
+            obs = SparsePauliOp(Pauli(op_nameX))
             observables.append(obs)
             # Y
             op_nameY = name_gate[:i] + 'Y' + name_gate[(i+1):]
-            obs = PauliOp(Pauli(op_nameY))
+            obs = SparsePauliOp(Pauli(op_nameY))
             observables.append(obs)
             # Z
             op_nameZ = name_gate[:i] + 'Z' + name_gate[(i+1):]
-            obs = PauliOp(Pauli(op_nameZ))
+            obs = SparsePauliOp(Pauli(op_nameZ))
             observables.append(obs)
         return observables
 
@@ -335,42 +323,66 @@ class QuantumCircQiskit:
         if self.observables_type=='single' or self.observables_type=='all':
             observables = self.get_observables()
 
+
+
         # 4. RUN CIRCUIT
         results = []
         results_noise = []
         
-        backend = Aer.get_backend('statevector_simulator')
+   
         if self.noise_model is not None:
-            # Perform a noisy simulation
-            if self.err_type=='depolarizing_idle' or self.err_type=='amplitude_damping_idle' or self.err_type=='phase_damping_idle':
-                optimization_level=0
-            else:
-                optimization_level=1
-            qc_state = execute(qc, backend,
-                             basis_gates=self.basis_gates,
-                             coupling_map = self.coupling_map,
-                             noise_model=self.noise_model, optimization_level=optimization_level).result().get_statevector(qc)
-            
+            backend = AerSimulator(method='density_matrix', noise_model=self.noise_model)
+            qc.save_density_matrix()
         else:
-            job = backend.run(transpile(qc, backend))
-            qc_state = job.result().get_statevector(qc)
+            backend = AerSimulator(method='statevector')
+            qc.save_statevector()
+
+        optimization_level = 0 if self.err_type in ['depolarizing_idle', 'amplitude_damping_idle', 'phase_damping_idle'] else 1
+        transpiled_qc = transpile(qc, backend, optimization_level=optimization_level)
+        job = backend.run(transpiled_qc)
+
+        result = job.result()
+
+        # 4.1 Debug info
+        print(f'\nDEBUG INFO')
+        print(f"Circuit depth: {qc.depth()}")
+        print(f"Circuit gates: {qc.count_ops()}")
+        print(f"Circuit num_qubits: {qc.num_qubits}")
+        print(result)
+        print(f'\n')
+
+
+        qc_noiseless = qc.copy()
+
+        if self.noise_model is not None:
+            # Density matrix simulation - convert to statevector if possible
+            dm_data = result.data(0)["density_matrix"]
+            dm = DensityMatrix(dm_data)
+            qc_state = dm.data
+        else:
+            qc_state = result.get_statevector()
+
+
         
         if self.observables_type=='fidelity':
-            backend = Aer.get_backend('statevector_simulator')
-            job = backend.run(transpile(qc, backend))
-            qc_state_noiseless = job.result().get_statevector(qc)
+            backend_noiseless = AerSimulator(method='statevector')
+            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
+            qc_state_noiseless = job_noiseless.result().get_statevector()
+
             state_noise = Statevector(qc_state)
             state_noiseless = Statevector(qc_state_noiseless)
             fidelity = state_fidelity(state_noise,state_noiseless)
             return np.array(state_noise), np.array(state_noiseless), fidelity
         
         if self.observables_type=='all':
-            backend = Aer.get_backend('statevector_simulator')
-            job = backend.run(transpile(qc, backend))
-            qc_state_noiseless = job.result().get_statevector(qc)
+            backend_noiseless = AerSimulator(method='statevector')
+            job_noiseless = backend.run(transpile(qc_noiseless, backend_noiseless))
+            qc_state_noiseless = job_noiseless.result().get_statevector()
+
             state_noise = Statevector(qc_state)
             state_noiseless = Statevector(qc_state_noiseless)
             fidelity = state_fidelity(state_noise,state_noiseless)
+            
             for obs in observables:
                 obs_mat = obs.to_spmatrix()
                 expect = np.inner(np.conjugate(state_noise), obs_mat.dot(state_noise)).real
@@ -405,10 +417,10 @@ print('Num gates: ', num_gates, ' gate_set: ', gate_set, ' observables_type:', o
       ' err_type: ', err_type, ' err_p1: ', err_p1, ' err_p2: ', err_p2  )
 
 # Read data
-with open('ground_states_LiH.npy', 'rb') as f:
+with open('training_data/ground_states_LiH.npy', 'rb') as f:
         ground_states = np.load(f)
 
-for j in range(100):
+for j in range(5):
     # Run circuit for all values of ground states:
     
     num_states =ground_states.shape[0]
