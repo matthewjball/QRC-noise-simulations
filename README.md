@@ -14,20 +14,18 @@ pip install -r requirements.txt
 
 ### Running code
 
-`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=thermal_relaxation --err_p1=0.001 --err_p2=0.01`
+`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=thermal_relaxation --t1=50e6 --t2=0.01`
 
-where 
+where
 
-+ `num_gates` is the number of gates (in this work we have used 20, 50, 100, 150, 200)
++ `num_gates` is the number of gates (results presented in paper used values: 25,50 ..)
 + `gates_set` is the name of the gate set, from the list [G1, G2, G3, MG, D2, D3, Dn]
 + `observable_type` is either *single* which only returns the expected values, *fidelity* which returns the state fidelities or *all*, which returns the expected values, fidelitites and final states
-+ `error_type` must be *amplitude_damping*, *depolarizing*, *phase_damping* or *fake*, which corresponds to a fake provider
-+ `p1` is the error probability of qubit 1
-+ `p2` is the error probability of qubit 2
++ `error_type` must be *thermal_relaxation*, *amplitude_damping*, *depolarizing*, *phase_damping* or *none*
++ `t1` is the thermal relaxation time (typical value is 50e-6)
++ `t2` is the thermal dephasing time (typical value is 70e-6)
 
-## Contributions
 
-Contributions are welcome!  For bug reports or requests please [submit an issue](https://github.com/laiadc/Optimal_QRC_noise/issues).
 
 ## Contact  
 
