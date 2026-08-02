@@ -438,7 +438,7 @@ print('Num gates: ', num_gates, ' gate_set: ', gate_set, ' observables_type:', o
 with open('training_data/ground_states_LiH.npy', 'rb') as f:
         ground_states = np.load(f)
 
-for j in range(1):
+for j in range(3):
     # Run circuit for all values of ground states:
     
     num_states = ground_states.shape[0]
