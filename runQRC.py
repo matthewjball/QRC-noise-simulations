@@ -267,6 +267,7 @@ class QuantumCircQiskit:
             if t2 > 2 * t1:
                 raise ValueError(f'T2 ({t2}s) must be <= 2*T1 ({2*t1}s)')
 
+            # One-qubit error
             error_1 = noise.thermal_relaxation_error(
             t1=t1, t2=t2, time=gate_time_1q,
             excited_state_population=excited_state_population)
@@ -438,7 +439,7 @@ print('Num gates: ', num_gates, ' gate_set: ', gate_set, ' observables_type:', o
 with open('training_data/ground_states_LiH.npy', 'rb') as f:
         ground_states = np.load(f)
 
-for j in range(3):
+for j in range(7):
     # Run circuit for all values of ground states:
     
     num_states = ground_states.shape[0]

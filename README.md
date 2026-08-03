@@ -33,9 +33,9 @@ https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html
 
 ### Installing depedencies
 All dependencies for this code can be found in the requirements.txt file and can be installed with:
-pip install -r requirements.txt
+`pip install -r requirements.txt`
 
-Note that qiskit-aer-gpu is only available on x86_64 Linux distributions and requires Nvidia CUDA to operate.
+Note that qiskit-aer-gpu is only available on x86_64 Linux distributions and requires Nvidia CUDA >=11 to operate.
 
 If your system does not meet these requirements instead use the qiskit-aer library and remove parameter 'device="GPU"' from simulator objects.
 
