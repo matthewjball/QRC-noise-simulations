@@ -27,3 +27,7 @@ for p_target, params in T1_T2_MAP.items():
     
     print(f"p={p_target:.4f}: T1={t1*1e6:.0f}µs, T2={t2*1e6:.0f}µs")
     print(f"  → 1Q error: {eps_1q:.6f} ({eps_1q*100:.4f}%), 2Q error: {eps_2q:.6f} ({eps_2q*100:.4f}%)")
+
+
+# This python code validates relaxation and decoherence values from given error probabilities.
+# Note that the error rate is scaled by the gate time 
