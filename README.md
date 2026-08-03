@@ -69,7 +69,7 @@ Feel free to contact me to discuss any issues, questions or comments.
 ```
 @misc{QRCgithubmball,
 title={QRC noise simulations},
-url={https://github.com/matthewjball/QRC-noise-simulations},
+url={https://github.com/matthewjball/QRC-thermal-noise-simulation},
 note={GitHub repository containing code for simulations of different sources of noise in qiskit on molecular data. Forked from and built on work hosted here: https://github.com/laiadc/Optimal_QRC_noise},
 author={Matthew Ball},
   year={2026}
