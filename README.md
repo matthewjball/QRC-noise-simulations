@@ -1,3 +1,27 @@
+## Forked work, credit to original author
+This repository was forked from previous work investigating the effect of noise on quantum reservoir computing
+Code hosted here: https://github.com/laiadc/Optimal_QRC_noise/blob/main/README.md
+Findings presented here: https://www.nature.com/articles/s41598-023-35461-5
+
+The summary of my contributions to this forked repository are:
+- updating API calls for qiskit version <2.0
+- Adding noise model for thermal noise
+- Updating simulation code to use density matrix model
+- Circuit simulation now done via GPU
+- Various performance optimisations
+- Notebook(s) updated to generate figures for thermal noise model
+
+Full credit goes to the original author for the existing work including:
+- Generating molecular data
+- QRC algorithms
+- Qubit and gate preparation
+- Logic for collection of observables results
+- Notebooks for statistical analysis and generating figures
+
+This project was used as part of my master's thesis on the topic of investigating the effects of noise on quantum computation. In particular this work is interested in exploring whether noise can be exploited for computational advantages.
+
+Simulation parameters were set to be realistic based on available hardware and for fair comparison with the results previously obtained in https://www.nature.com/articles/s41598-023-35461-5.
+
 ## Running this code
 
 ### Virtual environment
@@ -9,25 +33,31 @@ https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html
 
 ### Installing depedencies
 All dependencies for this code can be found in the requirements.txt file and can be installed with:
-pip install -r requirements.txt
+`pip install -r requirements.txt`
+
+Note that qiskit-aer-gpu is only available on x86_64 Linux distributions and requires Nvidia CUDA >=11 to operate.
+
+If your system does not meet these requirements instead use the qiskit-aer library and remove parameter 'device="GPU"' from simulator objects.
+
+More information here: https://pypi.org/project/qiskit-aer-gpu/
 
 
 ### Running code
 
-`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=none --err_p1=0.001 --err_p2=0.01`
+Simulation code is contained within the runQRC.py file and requires the following parameters:
 
-where 
-
-+ `num_gates` is the number of gates (in this work we have used 20, 50, 100, 150, 200)
++ `num_gates` is the number of gates (results presented in paper used values: 25,50 ..)
 + `gates_set` is the name of the gate set, from the list [G1, G2, G3, MG, D2, D3, Dn]
 + `observable_type` is either *single* which only returns the expected values, *fidelity* which returns the state fidelities or *all*, which returns the expected values, fidelitites and final states
-+ `error_type` must be *amplitude_damping*, *depolarizing*, *phase_damping* or *fake*, which corresponds to a fake provider
-+ `p1` is the error probability of qubit 1
-+ `p2` is the error probability of qubit 2
++ `error_type` must be *thermal_relaxation*, *amplitude_damping*, *depolarizing*, *phase_damping* or *none*
++ `t1` is the thermal relaxation time (typical value is 50e-6)
++ `t2` is the thermal dephasing time (typical value is 70e-6)
 
-## Contributions
+Example command:
+`python runQRC.py --num_gates=10 --gate_set=G3 --observables_type=all --err_type=thermal_relaxation --t1=50e6 --t2=0.01`
 
-Contributions are welcome!  For bug reports or requests please [submit an issue](https://github.com/laiadc/Optimal_QRC_noise/issues).
+Additionally this repo contains a script 'run_therm_sims.sh' that I used to orchestrate simulations with different parameters.
+
 
 ## Contact  
 

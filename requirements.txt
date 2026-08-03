@@ -1,5 +1,8 @@
-qiskit
-qiskit_aer
+qiskit<2.0
+qiskit-aer-gpu==0.15.1
 numpy
 scipy
 jupyter
+matplotlib
+umap-learn
+pandas
