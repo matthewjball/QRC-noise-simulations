@@ -1,7 +1,7 @@
 ## Forked work, credit to original author
 This repository was forked from previous work investigating the effect of noise on quantum reservoir computing
 
-Code hosted here: https://github.com/laiadc/Optimal_QRC_noise/blob/main/README.md
+Code hosted here: https://github.com/laiadc/Optimal_QRC_noise
 
 Findings presented here: https://www.nature.com/articles/s41598-023-35461-5
 
